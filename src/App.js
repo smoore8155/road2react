@@ -1,28 +1,9 @@
 import React from 'react';
 import './App.css';
 
-const initialStories = [
-  {
-    title: 'React',
-    url: 'https://reactjs.org/',
-    author: 'Jordan Walke',
-    num_comments: 3,
-    points: 4,
-    objectID: 0,
-  },
-  {
-    title: 'Redux',
-    url: 'https://redux.js.org/',
-    author: 'Dan Abramov, Andrew Clark',
-    num_comments: 2,
-    points: 5,
-    objectID: 1,
-  },
-]
-// Allows for loading data while other things happen
-const getAsyncStories = () => Promise.resolve({data: { stories: initialStories }})
+const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query='
 
-// Performs the actual retrieval of saved search string, if avail
+// Handle retrieving and saving of the typed search string.
 const useSemiPersistentState = (key, initialState) => {
   const [value, setValue] = React.useState(
     localStorage.getItem(key) || initialState
@@ -37,7 +18,7 @@ const useSemiPersistentState = (key, initialState) => {
 const App = () => {
  
   // Initializes the search terms to last used or blank
-  const [searchTerm, setSearchTerm] = useSemiPersistentState('search', '')
+  const [searchTerm, setSearchTerm] = useSemiPersistentState('search', 'React')
   
   // Handle various state transitions
   const storiesReducer = (state, action) => {
@@ -85,21 +66,29 @@ const App = () => {
       isError: false 
     }
   )
+  // Get the stories using fetch.
+  const handleFetchStories = React.useCallback(() => {
+    if (!searchTerm) return
 
-  // This features allows us to download story data
-  React.useEffect(() => {
     dispatchStories({ type: 'STORIES_FETCH_INIT' })
 
-    getAsyncStories().then(result => {
+    fetch(API_ENDPOINT.concat(searchTerm))
+      .then(response => response.json())
+      .then(result => {
       dispatchStories({
         type: 'STORIES_FETCH_SUCCESS',
-        payload: result.data.stories,
+        payload: result.hits,
       })
     })
     .catch(() => 
       dispatchStories({ type: 'STORIES_FETCH_FAILURE'})
     )
-  }, [])
+  }, [searchTerm])
+
+  // This features allows us to download story data
+  React.useEffect(() => {
+    handleFetchStories()
+  }, [handleFetchStories])
 
   // The user wishes to Dismiss a story from the list
   const handleRemoveStory = item => {
@@ -112,11 +101,6 @@ const App = () => {
   const handleSearch = event => {
     setSearchTerm(event.target.value)
   }
-
-  // Performs the actual search, case-insensitive
-  const searchedStories = stories.data.filter(story => (
-    story.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ))
 
   return (
     <div className="App">
@@ -136,7 +120,7 @@ const App = () => {
         {/* Conditional rendering based on data availability*/}
         {stories.isLoading ? (
           <p>Loading</p>) :
-          (<List list={searchedStories} 
+          (<List list={stories.data} 
             onRemoveItem={handleRemoveStory} 
           />)      
         }
