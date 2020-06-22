@@ -3,7 +3,7 @@ import './App.css';
 
 const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query='
 
-// Performs the actual retrieval of saved search string, if avail
+// Handle retrieving and saving of the typed search string.
 const useSemiPersistentState = (key, initialState) => {
   const [value, setValue] = React.useState(
     localStorage.getItem(key) || initialState
@@ -66,9 +66,8 @@ const App = () => {
       isError: false 
     }
   )
-
-  // This features allows us to download story data
-  React.useEffect(() => {
+  // Get the stories using fetch.
+  const handleFetchStories = React.useCallback(() => {
     if (!searchTerm) return
 
     dispatchStories({ type: 'STORIES_FETCH_INIT' })
@@ -85,6 +84,11 @@ const App = () => {
       dispatchStories({ type: 'STORIES_FETCH_FAILURE'})
     )
   }, [searchTerm])
+
+  // This features allows us to download story data
+  React.useEffect(() => {
+    handleFetchStories()
+  }, [handleFetchStories])
 
   // The user wishes to Dismiss a story from the list
   const handleRemoveStory = item => {
