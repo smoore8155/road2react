@@ -97,6 +97,7 @@ const App = () => {
     )
   }, [url])
 
+
   // This features allows us to download story data
   React.useEffect(() => {
     handleFetchStories()
@@ -110,9 +111,6 @@ const App = () => {
     })
   }
   // Set up a search using the entered search term
-  // const handleSearch = event => {
-  // setSearchTerm(event.target.value)
-  //}
 
   return (
     <div className="App">
