@@ -27,6 +27,7 @@ const App = () => {
 
   const handleSearchInput = event => {
     setSearchTerm(event.target.value)
+    event.preventDefault()
   }
 
   const handleSearchSubmit = () => {
@@ -109,31 +110,15 @@ const App = () => {
       payload: item,
     })
   }
-  // Set up a search using the entered search term
-  // const handleSearch = event => {
-  // setSearchTerm(event.target.value)
-  //}
 
   return (
     <div className="App">
-        <h1>
-          My Hacker Stories 
-        </h1>
-
-        <InputWithLabel 
-          id="search" 
-          value={searchTerm}
-          onInputChange={handleSearchInput}
-        >
-          <strong>Search:</strong>
-        </InputWithLabel>
-        <button
-          type="button"
-          disabled={!searchTerm}
-          onClick={handleSearchSubmit}
-        >
-          Submit 
-        </button>
+        <h1>My Hacker Stories </h1>
+        <SearchForm
+          searchTerm={searchTerm}
+          onSearchInput={handleSearchInput}
+          onSearchSubmit={handleSearchSubmit}
+        />
         <hr />
         {/* Check for possible error in getting data*/}
         {stories.isError && <p>Something went wrong...</p>}
@@ -199,6 +184,29 @@ const InputWithLabel = ({
         value={value}
       />
     </>
+)
+const SearchForm = ({
+  searchTerm,
+  onSearchInput,
+  onSearchSubmit,
+}) => (
+  <form onSubmit={onSearchSubmit}>
+    <InputWithLabel 
+      id="search" 
+      value={searchTerm}
+      isFocused
+      onInputChange={onSearchInput}
+    >
+      <strong>Search:</strong>
+    </InputWithLabel>
+    
+    <button
+      type="submit"
+      disabled={!searchTerm}
+    >
+      Submit 
+    </button>          
+  </form>
 )
 
 export default App;
