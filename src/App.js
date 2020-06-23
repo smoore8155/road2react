@@ -20,6 +20,18 @@ const App = () => {
   // Initializes the search terms to last used or blank
   const [searchTerm, setSearchTerm] = useSemiPersistentState('search', 'React')
   
+  const [url, setUrl] = React.useState(
+    API_ENDPOINT + searchTerm
+  )
+
+  const handleSearchInput = event => {
+    setSearchTerm(event.target.value)
+  }
+
+  const handleSearchSubmit = () => {
+    setUrl(API_ENDPOINT + searchTerm)
+  }
+
   // Handle various state transitions
   const storiesReducer = (state, action) => {
     switch (action.type) {
@@ -68,11 +80,11 @@ const App = () => {
   )
   // Get the stories using fetch.
   const handleFetchStories = React.useCallback(() => {
-    if (!searchTerm) return
 
     dispatchStories({ type: 'STORIES_FETCH_INIT' })
 
-    fetch(API_ENDPOINT.concat(searchTerm))
+    //fetch(API_ENDPOINT.concat(searchTerm))
+    fetch(url)
       .then(response => response.json())
       .then(result => {
       dispatchStories({
@@ -83,7 +95,8 @@ const App = () => {
     .catch(() => 
       dispatchStories({ type: 'STORIES_FETCH_FAILURE'})
     )
-  }, [searchTerm])
+  }, [url])
+
 
   // This features allows us to download story data
   React.useEffect(() => {
@@ -98,21 +111,27 @@ const App = () => {
     })
   }
   // Set up a search using the entered search term
-  const handleSearch = event => {
-    setSearchTerm(event.target.value)
-  }
 
   return (
     <div className="App">
         <h1>
           My Hacker Stories 
         </h1>
-        <strong>Search: </strong>
+
         <InputWithLabel 
           id="search" 
           value={searchTerm}
-          onInputChange={handleSearch}
-        />
+          onInputChange={handleSearchInput}
+        >
+          <strong>Search:</strong>
+        </InputWithLabel>
+        <button
+          type="button"
+          disabled={!searchTerm}
+          onClick={handleSearchSubmit}
+        >
+          Submit 
+        </button>
         <hr />
         {/* Check for possible error in getting data*/}
         {stories.isError && <p>Something went wrong...</p>}
