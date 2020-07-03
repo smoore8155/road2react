@@ -1,8 +1,41 @@
 import React from 'react'
 import axios from 'axios'
-import './App.css';
+import styles from './App.module.css';
+import SearchForm from './SearchForm'
+import List from './List'
 
-const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query='
+const API_BASE = 'https://hn.algolia.com/api/v1'
+const API_SEARCH = '/search/'
+const PARAM_SEARCH = 'query='
+const PARAM_PAGE = 'page='
+
+const getUrl = (searchTerm,page) =>
+  API_BASE + API_SEARCH + '?' + PARAM_SEARCH + searchTerm + '&' + PARAM_PAGE + page
+
+const extractSearchTerm = url => 
+  url
+    .substring(url.lastIndexOf('?') + 1, url.lastIndexOf('&'))
+    .replace(PARAM_SEARCH, '')
+
+const getLastSearches = urls => 
+  urls
+    .reduce((result, url, index) => {
+      const searchTerm = extractSearchTerm(url)
+
+      if (index === 0) {
+        return result.concat(searchTerm)
+      }
+      const previousSearchTerm = result[result.length - 1]
+
+      if (searchTerm === previousSearchTerm) {
+        return result
+      }
+      else {
+        return result.concat(searchTerm)
+      }
+    }, [])
+    .slice(-6)
+    .slice(0, -1)
 
 // Handle retrieving and saving of the typed search string.
 const useSemiPersistentState = (key, initialState) => {
@@ -13,90 +46,89 @@ const useSemiPersistentState = (key, initialState) => {
   React.useEffect(() => {
     localStorage.setItem(key, value)
   }, [value, key])
+
   return [value, setValue]
+}
+
+// Handle various state transitions
+const storiesReducer = (state, action) => {
+  switch (action.type) {
+    // Signal that stories are being fetch. Allow loading message to display.
+    case 'STORIES_FETCH_INIT':
+      return {
+        ...state,
+        isLoading: true,
+        isError: false,       
+      }
+    // Stories fetched, so get ready to proceed.
+    case 'STORIES_FETCH_SUCCESS':
+      return {
+        ...state,
+        isLoading: false,
+        isError: false,
+        data: action.payload.page === 0 
+          ? action.payload.list 
+          : state.data.concat(action.payload.list),
+        page: action.payload.page,
+      }
+    // Something went wrong, so clean up the mess.
+    case 'STORIES_FETCH_FAILURE':
+      return {
+        ...state,
+        isLoading: false,
+        isError: true,
+      }
+    // A story is to be removed.  Make it happen here.
+    case 'REMOVE_STORY':
+      return {
+        ...state,
+        data: state.data.filter(
+          story => action.payload.objectID !== story.objectID
+        )
+      }
+    // Something unexpected happened, so handle it gracefully.
+    default: 
+      throw new Error()
+  }
 }
 
 const App = () => {
  
   // Initializes the search terms to last used or blank
   const [searchTerm, setSearchTerm] = useSemiPersistentState('search', 'React')
-  
-  const [url, setUrl] = React.useState(
-    API_ENDPOINT + searchTerm
-  )
+  const [urls, setUrls] = React.useState([getUrl(searchTerm, 0)])
 
-  const handleSearchInput = event => {
-    setSearchTerm(event.target.value)
-    event.preventDefault()
-  }
-
-  const handleSearchSubmit = () => {
-    setUrl(API_ENDPOINT + searchTerm)
-  }
-
-  // Handle various state transitions
-  const storiesReducer = (state, action) => {
-    switch (action.type) {
-      // Signal that stories are being fetch. Allow loading message to display.
-      case 'STORIES_FETCH_INIT':
-        return {
-          ...state,
-          isLoading: true,
-          isError: false,
-        }
-      // Stories fetched, so get ready to proceed.
-      case 'STORIES_FETCH_SUCCESS':
-        return {
-          ...state,
-          isLoading: false,
-          isError: false,
-          data: action.payload,
-        }
-      // Something went wrong, so clean up the mess.
-      case 'STORIES_FETCH_FAILURE':
-        return {
-          ...state,
-          isLoading: false,
-          isError: true,
-        }
-      // A story is to be removed.  Make it happen here.
-      case 'REMOVE_STORY':
-        return {
-          ...state,
-          data: state.data.filter(
-            story => action.payload.objectID !== story.objectID
-          )
-        }
-      // Something unexpected happened, so handle it gracefully.
-      default: 
-        throw new Error()
-    }
-  }
-  // Set up how we will handle stories.
-  const [stories, dispatchStories] = React.useReducer(
+   // Set up how we will handle stories.
+   const [stories, dispatchStories] = React.useReducer(
     storiesReducer,
     { data: [], 
+      page: 0,
       isLoading: false, 
       isError: false 
     }
   )
+
   // Get the stories using fetch.
   const handleFetchStories = React.useCallback(async () => {
 
-    dispatchStories({ type: 'STORIES_FETCH_INIT' })
- 
-    try {
-      const result = await axios.get(url)
-
-      dispatchStories({
+      dispatchStories({ type: 'STORIES_FETCH_INIT' })
+   
+      try {
+        const lastUrl = urls[urls.length-1]
+        const result = await axios.get(lastUrl)
+  
+        dispatchStories({
           type: 'STORIES_FETCH_SUCCESS',
-          payload: result.data.hits,
-      })
-    }
-    catch {
-      dispatchStories({ type: 'STORIES_FETCH_FAILURE'})
-    }
-  }, [url])
+          payload: {
+            list: result.data.hits,
+            page: result.data.page,
+          },
+        })
+      }  
+      catch {
+        dispatchStories({ type: 'STORIES_FETCH_FAILURE'})
+      }
+    }, [urls])
 
   // This features allows us to download story data
   React.useEffect(() => {
@@ -110,103 +142,80 @@ const App = () => {
       payload: item,
     })
   }
+  const handleSearchInput = event => {
+    setSearchTerm(event.target.value)
+  }
+  const handleSearchSubmit = event => {
+    handleSearch(searchTerm, 0)
+    event.preventDefault()
+  }
+  const handleLastSearch = searchTerm => {
+    setSearchTerm(searchTerm)
+    handleSearch(searchTerm, 0)
+  }
+  const handleMore = () => {
+    const lastUrl = urls[urls.length - 1]
+    const searchTerm = extractSearchTerm(lastUrl)
+    handleSearch(searchTerm, stories.page + 1)
+  }
+  const handleSearch = (searchTerm, page) => {
+    const url = getUrl(searchTerm, page)
+    setUrls(urls.concat(url))
+  }
+  const lastSearches = getLastSearches(urls)
 
   return (
-    <div className="App">
-        <h1>My Hacker Stories </h1>
+    <div className={styles.container}>
+        <h1 className={styles.headlinePrimary}>Hacker News Topics </h1>
         <SearchForm
           searchTerm={searchTerm}
           onSearchInput={handleSearchInput}
           onSearchSubmit={handleSearchSubmit}
         />
+        
+        <LastSearches
+          lastSearches={lastSearches}
+          onLastSearch={handleLastSearch}
+        />
+
         <hr />
         {/* Check for possible error in getting data*/}
         {stories.isError && <p>Something went wrong...</p>}
 
         {/* Conditional rendering based on data availability*/}
-        {stories.isLoading ? (
-          <p>Loading</p>) :
-          (<List list={stories.data} 
-            onRemoveItem={handleRemoveStory} 
-          />)      
+        <List list={stories.data} onRemoveItem={handleRemoveStory} />
+
+        <br />
+        {stories.isLoading 
+          ? ( <p>Loading</p>) 
+          : (
+              <button type="button" onClick={handleMore}>
+                More
+              </button>
+          )
         }
+      <br />
+      <br />
+      <br />
+      <div>Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
     </div>
   )
 }
 
-// Data structure of the list of stories w removal status
-const List = ({list, onRemoveItem}) => 
-      list.map (item => 
-        <Item 
-          key={item.objectID} 
-          item={item} 
-          onRemoveItem={onRemoveItem}
-        />)
 
-// Handles the actual display of one story
-const Item = ({ item, onRemoveItem }) => {
-  function handleRemoveItem () {
-    onRemoveItem(item)
-  }
-  return(
-    <div>
-      <span>
-        <a href={item.url} target="_blank" rel="noopener noreferrer">
-          {item.title}
-        </a>
-      </span>
-      <span> {item.author} </span>
-      <span> {item.num_comments} </span>
-      <span> {item.points} </span>   
-      <span>
-          <button type="button" onClick={handleRemoveItem}>
-            Dismiss
-          </button>
-          </span> 
-    </div>
-  )
-}
-// Component: Labeled text box
-const InputWithLabel = ({
-  id, 
-  value, 
-  type='text', 
-  onInputChange, 
-  children,
-}) => (
-    <>
-      <label htmlFor={id}>{children}</label>
-      &nbsp;
-      <input 
-        id={id}
-        type={type}
-        onChange={onInputChange} 
-        value={value}
-      />
-    </>
-)
-const SearchForm = ({
-  searchTerm,
-  onSearchInput,
-  onSearchSubmit,
-}) => (
-  <form onSubmit={onSearchSubmit}>
-    <InputWithLabel 
-      id="search" 
-      value={searchTerm}
-      isFocused
-      onInputChange={onSearchInput}
-    >
-      <strong>Search:</strong>
-    </InputWithLabel>
-    
-    <button
-      type="submit"
-      disabled={!searchTerm}
-    >
-      Submit 
-    </button>          
-  </form>
+const LastSearches = ({ lastSearches, onLastSearch }) => (
+  <>
+    {lastSearches.map((searchTerm, index) => (
+      <button
+        key={searchTerm + index}
+        type="button"
+        onClick={() => onLastSearch(searchTerm)}
+      >
+        {searchTerm}
+      </button>
+    ))}
+  </>
 )
 
 export default App;
+export { storiesReducer }
