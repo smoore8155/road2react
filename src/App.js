@@ -1,3 +1,9 @@
+// SL Moore Road-to-React project. Completed 7/3/20.
+// Single-page App which accesses the Hacker News database API to display a sortable list of news stories.
+// User may search for stories containing manually entered searh string
+// Last 5 searches are saved and listed for easy search-again.
+// List of stories is displayed in a paginated fashion, displaying more stories as requested.
+//
 import React from 'react'
 import axios from 'axios'
 import styles from './App.module.css';
@@ -9,14 +15,17 @@ const API_SEARCH = '/search/'
 const PARAM_SEARCH = 'query='
 const PARAM_PAGE = 'page='
 
+// Search string submitted to the API.
 const getUrl = (searchTerm,page) =>
   API_BASE + API_SEARCH + '?' + PARAM_SEARCH + searchTerm + '&' + PARAM_PAGE + page
 
+// Search term saved and displayed with last 5 search terms.
 const extractSearchTerm = url => 
   url
     .substring(url.lastIndexOf('?') + 1, url.lastIndexOf('&'))
     .replace(PARAM_SEARCH, '')
 
+// Last five search terms for displaying at the top of screen.
 const getLastSearches = urls => 
   urls
     .reduce((result, url, index) => {
@@ -61,6 +70,7 @@ const storiesReducer = (state, action) => {
         isError: false,       
       }
     // Stories fetched, so get ready to proceed.
+    // Also handles pagination
     case 'STORIES_FETCH_SUCCESS':
       return {
         ...state,
@@ -142,28 +152,35 @@ const App = () => {
       payload: item,
     })
   }
+  // User types search string in
   const handleSearchInput = event => {
     setSearchTerm(event.target.value)
   }
+  // User presses search Submit button
   const handleSearchSubmit = event => {
     handleSearch(searchTerm, 0)
     event.preventDefault()
   }
+  // Prior searches available to be called again
   const handleLastSearch = searchTerm => {
     setSearchTerm(searchTerm)
     handleSearch(searchTerm, 0)
   }
+  // User presses button to show more stories.
   const handleMore = () => {
     const lastUrl = urls[urls.length - 1]
     const searchTerm = extractSearchTerm(lastUrl)
     handleSearch(searchTerm, stories.page + 1)
   }
+  // Search for these stories.
   const handleSearch = (searchTerm, page) => {
     const url = getUrl(searchTerm, page)
     setUrls(urls.concat(url))
   }
+  // Remember the previous 5 searches
   const lastSearches = getLastSearches(urls)
 
+  // Render the page.
   return (
     <div className={styles.container}>
         <h1 className={styles.headlinePrimary}>Hacker News Topics </h1>
@@ -202,7 +219,7 @@ const App = () => {
   )
 }
 
-
+// Create the buttons showing the last 5 searches.
 const LastSearches = ({ lastSearches, onLastSearch }) => (
   <>
     {lastSearches.map((searchTerm, index) => (
